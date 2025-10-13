@@ -1,4 +1,6 @@
 ﻿using RqliteDotnet.Dto;
+
+using System.Data;
 using System.Text;
 using System.Text.Json;
 
@@ -46,6 +48,7 @@ public class RqliteClient : IRqliteClient, IDisposable
         var str = await r.Content.ReadAsStringAsync(cancellationToken);
 
         var result = JsonSerializer.Deserialize<QueryResults>(str, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+        EnsureNoErrorResults(result);
         return result;
     }
 
@@ -56,6 +59,7 @@ public class RqliteClient : IRqliteClient, IDisposable
         request.Content = new StringContent($"[\"{command}\"]", Encoding.UTF8, "application/json");
 
         var result = await _httpClient.SendTyped<ExecuteResults>(request, cancellationToken);
+        EnsureNoErrorResults(result);
         return result;
     }
 
@@ -69,6 +73,7 @@ public class RqliteClient : IRqliteClient, IDisposable
 
         request.Content = new StringContent($"[{s}]", Encoding.UTF8, "application/json");
         var result = await _httpClient.SendTyped<ExecuteResults>(request, cancellationToken);
+        EnsureNoErrorResults(result);
         return result;
     }
 
@@ -82,6 +87,7 @@ public class RqliteClient : IRqliteClient, IDisposable
 
         request.Content = new StringContent($"[{s}]", Encoding.UTF8, "application/json");
         var result = await _httpClient.SendTyped<ExecuteResults>(request, cancellationToken);
+        EnsureNoErrorResults(result);
         return result;
     }
 
@@ -93,6 +99,7 @@ public class RqliteClient : IRqliteClient, IDisposable
 
         request.Content = new StringContent($"[{q}]", Encoding.UTF8, "application/json");
         var result = await _httpClient.SendTyped<QueryResults>(request, cancellationToken);
+        EnsureNoErrorResults(result);
 
         return result;
     }
@@ -165,5 +172,37 @@ public class RqliteClient : IRqliteClient, IDisposable
     public void Dispose()
     {
         _httpClient.Dispose();
+    }
+
+
+    /// <summary>
+    /// Verifies that a QueryResults contains no errors. If it does, throws a exception with each error in a inner exception 
+    /// </summary>
+    /// <param name="result"></param>
+    private static void EnsureNoErrorResults(QueryResults? result)
+    {
+        var ex = result?.Results?.Select(r => r.Error)
+                                 .Where(e => !string.IsNullOrEmpty(e)).OfType<string>()
+                                 .Aggregate<string, InvalidOperationException?>(null, (agg, err) => new InvalidOperationException(err, agg));
+        if(ex is not null)
+        {
+            throw ex;
+        }
+    }
+
+
+    /// <summary>
+    /// Verifies that a ExecuteResults contains no errors. If it does, throws a exception with each error in a inner exception 
+    /// </summary>
+    /// <param name="result"></param>
+    private static void EnsureNoErrorResults(ExecuteResults? result)
+    {
+        var ex = result?.Results?.Select(r => r.Error)
+                                 .Where(e => !string.IsNullOrEmpty(e)).OfType<string>()
+                                 .Aggregate<string, InvalidOperationException?>(null, (agg, err) => new InvalidOperationException(err, agg));
+        if (ex is not null)
+        {
+            throw ex;
+        }
     }
 }
